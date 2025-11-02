@@ -1,0 +1,205 @@
+https://www.aliexpress.us/?spm=a2g0o.home.logo.1.65676278ISjeQT
+Free Gifts For New Users
+// url := "https://www.alibaba.com/search/page?spm=a2700.prosearch.the-new-header_fy23_pc_search_bar.keydown__Enter&SearchScene=proSearch&SearchText=brazaletes+japones&pro=true&from=pcDetailHeader"
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/input"
+	"github.com/go-rod/rod/lib/launcher"
+)
+
+type Producto struct {
+	Title   string   `json:"title"`
+	URL     string   `json:"url"`
+	Images  []string `json:"images"`
+	Price   string   `json:"price"`
+	Sales   string   `json:"sales"`
+	Rating  string   `json:"rating"`
+	Stars   int      `json:"stars"`
+	Reviews int      `json:"reviews"`
+}
+
+func main() {
+	busqueda := "Labiar" // Cambia la búsqueda
+
+	bravePath := "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
+
+	// Lanzar Brave
+	url := launcher.New().Bin(bravePath).Headless(false).MustLaunch()
+	browser := rod.New().ControlURL(url).MustConnect()
+	defer browser.MustClose()
+
+	// Abrir AliExpress
+	page := browser.MustPage("https://www.aliexpress.us/?spm=a2g0o.home.logo.1.65676278ISjeQT")
+	page.MustWaitLoad()
+
+	// Buscar producto
+	searchSelector := "input[placeholder='Free Gifts For New Users']"
+	page.MustElement(searchSelector).MustInput(busqueda)
+	page.Keyboard.Press(input.Enter)
+
+	time.Sleep(3 * time.Second)
+
+	var productos []Producto
+
+	links, _ := page.Elements("a")
+	for _, link := range links {
+		title, _ := link.Text()
+		href, _ := link.Attribute("href")
+		if title != "" && href != nil && strings.Contains(*href, "item") {
+			var images []string
+
+			// Extraer imágenes <img>
+			imgEls, _ := link.Elements("img")
+			for _, imgEl := range imgEls {
+				if src, _ := imgEl.Attribute("src"); src != nil && *src != "" {
+					images = append(images, *src)
+				}
+			}
+
+			// Extraer imágenes de background-image en div
+			divEls, _ := link.Elements("div")
+			for _, divEl := range divEls {
+				if style, _ := divEl.Attribute("style"); style != nil {
+					start := strings.Index(*style, "url(")
+					end := strings.Index(*style, ")")
+					if start != -1 && end != -1 && start < end {
+						imgURL := (*style)[start+4 : end]
+						imgURL = strings.Trim(imgURL, `"'`)
+						images = append(images, imgURL)
+					}
+				}
+			}
+
+			// Extraer precio sumando los <span>
+			price := ""
+			for _, div := range divEls {
+				spans, _ := div.Elements("span")
+				if len(spans) > 1 {
+					texts := []string{}
+					for _, s := range spans {
+						t, _ := s.Text()
+						if t != "" {
+							texts = append(texts, t)
+						}
+					}
+					if len(texts) > 0 && strings.Contains(texts[0], "$") {
+						price = strings.Join(texts, "")
+						break
+					}
+				}
+			}
+
+			// Extraer ventas y rating
+			sales := ""
+			rating := ""
+			stars := 0
+			reviews := 0
+
+			for _, div := range divEls {
+				// Contar estrellas
+				imgs, _ := div.Elements("img")
+				if len(imgs) > 0 {
+					starCount := 0
+					for _, img := range imgs {
+						src, _ := img.Attribute("src")
+						if src != nil && strings.Contains(*src, ".png") {
+							starCount++
+						}
+					}
+					if starCount > 0 {
+						stars = starCount
+					}
+				}
+
+				// Buscar ventas y reviews
+				spans, _ := div.Elements("span")
+				for _, s := range spans {
+					txt, _ := s.Text()
+					txtLower := strings.ToLower(txt)
+					if strings.Contains(txtLower, "sold") {
+						sales = txt
+						// Extraer reviews numéricas si es posible
+						txtNum := strings.Fields(txt)
+						if len(txtNum) > 0 {
+							fmt.Sscanf(txtNum[0], "%d", &reviews)
+						}
+					} else if stars > 0 && txt != "" && reviews == 0 {
+						// fallback rating numérico
+						fmt.Sscanf(txt, "%d", &reviews)
+					}
+				}
+			}
+
+			productos = append(productos, Producto{
+				Title:   title,
+				URL:     *href,
+				Images:  images,
+				Price:   price,
+				Sales:   sales,
+				Rating:  rating,
+				Stars:   stars,
+				Reviews: reviews,
+			})
+		}
+	}
+
+	// Guardar JSON
+	file, err := os.Create("productos.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(productos); err != nil {
+		log.Fatal(err)
+	}
+
+	// Mostrar en consola
+	for _, p := range productos {
+		fmt.Println(p.Title, "-", p.URL)
+		fmt.Println("Price:", p.Price, "| Sales:", p.Sales, "| Rating:", p.Rating, "| Stars:", p.Stars, "| Reviews:", p.Reviews)
+		fmt.Println("Images:", p.Images)
+		fmt.Println("------------------------------------------------")
+	}
+
+	fmt.Println("Datos guardados en productos.json")
+}
+
+LEE ESTO ANTES DE TU COMPRA: Esta es una plataforma B2B, por lo tanto no debes comprar en este sitio si eres un individuo y no una empresa. Al navegar por estas páginas relacionadas con productos para adultos y/o realizar una compra de cualquiera de ellos, aceptas lo siguiente: (i) tienes más de 18 años (o 21 años si esa fuera la edad mínima para comprar y vender productos para adultos donde opera tu empresa); (ii) cualquier compra que realices de productos para adultos es solo para fines comerciales con licencia y no para consumo personal; (iii) te asegurarás de que el etiquetado del producto cumpla con los requisitos federales y estatales y no eliminarás ninguna etiqueta o advertencia sanitaria de los productos para adultos cuando los vendas; (iv) no venderás productos para adultos a niños y menores; y (v) tu compra (si la hubiere) de productos para adultos no está destinada a la importación a la Unión Europea ni en cualquier otra región que prohíba dicha importación, venta o reventa. Alibaba.com y los vendedores de la plataforma se reservan el derecho de cancelar cualquier transacción de venta cuando los términos anteriores sean, o se consideren, infringidos. En caso de incoherencias o discrepancias entre la versión en inglés y otras versiones traducidas de los términos y condiciones establecidos anteriormente, prevalecerá la versión en inglés. Alibaba.com no es responsable de verificar el cumplimiento normativo.
+"https://www.alibaba.com/product-detail/Two-piece-Xxxxxl-Sexy-Nighty-Lingerie_1600514271268.html?spm=a2700.galleryofferlist.normal_offer.d_image.259613a0kfAAQ8&selectedCarrierCode=SEMI_MANAGED_STANDARD@@STANDARD",
+
+| Categoría                               | Ejemplos                                                                                   | Precio al por mayor (aprox.) | Por qué funciona                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------- | -------------------------------------------------------------- |
+| **Accesorios femeninos**                | Collares, anillos ajustables, aretes minimalistas, pulseras con frases inspiradoras        | USD 0.20 – 1.00              | Ideales para regalar, emocionales y económicos                 |
+| **Productos de autocuidado**            | Mascarillas faciales, scrunchies, perfumes pequeños, bálsamos labiales, aceites esenciales | USD 0.30 – 2.00              | Las mujeres que ven dramas suelen cuidar su imagen y bienestar |
+| **Papelería estética / journaling**     | Cuadernos, stickers, marcadores pastel, planificadores                                     | USD 0.50 – 1.50              | Las amantes de dramas suelen ser detallistas y creativas       |
+| **Accesorios para el hogar / ambiente** | Velas aromáticas, luces LED cálidas, fundas de cojines                                     | USD 1 – 3                    | Relacionados con el ambiente romántico de los dramas           |
+| **Merch inspirado en dramas**           | Llaveros, camisetas, tote bags con frases o escenas de dramas                              | USD 1 – 3                    | Conecta directamente con su fandom o emociones                 |
+
+
+| Parámetro      | Tipo   | Descripción                                          | Ejemplo                        |
+| -------------- | ------ | ---------------------------------------------------- | ------------------------------ |
+| `q`            | string | Texto a buscar (en título, categoría o subcategoría) | `/buscar?q=camisa`             |
+| `categoria`    | string | Filtro por categoría exacta                          | `/buscar?categoria=ropa`       |
+| `subcategoria` | string | Filtro por subcategoría exacta                       | `/buscar?subcategoria=hombres` |
+| `ubicacion`    | string | Filtro por ubicación                                 | `/buscar?ubicacion=china`      |
+| `min`          | float  | Precio mínimo                                        | `/buscar?min=10`               |
+| `max`          | float  | Precio máximo                                        | `/buscar?max=100`              |
+
+| Parámetro | Tipo | Descripción                                       | Ejemplo               |
+| --------- | ---- | ------------------------------------------------- | --------------------- |
+| `page`    | int  | Número de página (por defecto 1)                  | `/productos?page=2`   |
+| `limit`   | int  | Cantidad de productos por página (por defecto 20) | `/productos?limit=20` |
+
