@@ -2,7 +2,7 @@ services:
   - type: web
     name: go-api
     env: go
-    rootDir: .
+    rootDir: ./api           # 📁 ruta donde está tu main.go
     buildCommand: go build -o app .
     startCommand: ./app
     plan: free
