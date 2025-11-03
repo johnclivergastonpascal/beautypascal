@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,17 +42,9 @@ var productos []Producto
 
 // ------------------ Cargar JSON ------------------
 func loadJSON() {
-	// Detecta automáticamente la carpeta donde se ejecuta el binario (Render)
-	exePath, err := os.Executable()
+	file, err := os.Open("productos.json")
 	if err != nil {
-		log.Fatalf("❌ Error obteniendo ruta del ejecutable: %v", err)
-	}
-	baseDir := filepath.Dir(exePath)
-	filePath := filepath.Join(baseDir, "productos.json")
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		log.Fatalf("❌ Error abriendo JSON (%s): %v", filePath, err)
+		log.Fatalf("❌ Error abriendo JSON: %v", err)
 	}
 	defer file.Close()
 
