@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: go-api
+    env: go
+    rootDir: .
+    buildCommand: go build -o app ./api
+    startCommand: ./app
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8080
