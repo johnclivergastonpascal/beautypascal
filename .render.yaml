@@ -3,7 +3,7 @@ services:
     name: go-api
     env: go
     rootDir: .
-    buildCommand: go build -o app ./api
+    buildCommand: go build -o app .
     startCommand: ./app
     plan: free
     autoDeploy: true

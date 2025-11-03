@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rs/cors"
 )
 
 type Precio struct {
@@ -239,10 +241,25 @@ func getCategorias(w http.ResponseWriter, r *http.Request) {
 func main() {
 	loadJSON()
 
-	http.HandleFunc("/productos", getAllProductos)
-	http.HandleFunc("/buscar", searchProductos)
-	http.HandleFunc("/categorias", getCategorias)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/productos", getAllProductos)
+	mux.HandleFunc("/buscar", searchProductos)
+	mux.HandleFunc("/categorias", getCategorias)
 
-	fmt.Println("🚀 Servidor corriendo en http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Puerto (por defecto 8080)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	// Middleware CORS (abierto)
+	handler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+	}).Handler(mux)
+
+	fmt.Println("🚀 Servidor corriendo en http://localhost:" + port)
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }
