@@ -44,9 +44,16 @@ var productos []Producto
 
 // ------------------ Cargar JSON ------------------
 func loadJSON() {
-	file, err := os.Open("productos.json")
+	path := "productos.json"
+
+	// Si no existe en el directorio actual, busca dentro de ./api/
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		path = "api/productos.json"
+	}
+
+	file, err := os.Open(path)
 	if err != nil {
-		log.Fatalf("❌ Error abriendo JSON: %v", err)
+		log.Fatalf("❌ Error abriendo JSON (%s): %v", path, err)
 	}
 	defer file.Close()
 
@@ -60,7 +67,7 @@ func loadJSON() {
 		log.Fatalf("❌ Error parseando JSON: %v", err)
 	}
 
-	fmt.Printf("✅ %d productos cargados correctamente\n", len(productos))
+	fmt.Printf("✅ %d productos cargados correctamente desde %s\n", len(productos), path)
 }
 
 // ------------------ Utilidades ------------------
