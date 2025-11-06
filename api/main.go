@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rs/cors"
 )
@@ -105,6 +103,7 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 
 	page, _ := strconv.Atoi(pageStr)
 	limit, _ := strconv.Atoi(limitStr)
+
 	if page < 1 {
 		page = 1
 	}
@@ -112,25 +111,20 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	shuffled := make([]Producto, len(productos))
-	copy(shuffled, productos)
-	rand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
-
 	start := (page - 1) * limit
 	end := start + limit
-	if start >= len(shuffled) {
-		start = len(shuffled)
+	if start >= len(productos) {
+		start = len(productos)
 	}
-	if end > len(shuffled) {
-		end = len(shuffled)
+	if end > len(productos) {
+		end = len(productos)
 	}
 
 	response := map[string]interface{}{
 		"page":      page,
 		"limit":     limit,
 		"total":     len(productos),
-		"productos": shuffled[start:end],
+		"productos": productos[start:end],
 	}
 
 	w.Header().Set("Content-Type", "application/json")
