@@ -42,7 +42,6 @@ type BloqueLogistico struct {
 type Producto struct {
 	URL             string           `json:"url"`
 	Categoria       string           `json:"categoria"`
-	Subcategoria    string           `json:"subcategoria"`
 	Ubicacion       string           `json:"ubicacion"`
 	Titulo          string           `json:"titulo"`
 	ImagenesGrandes []string         `json:"imagenes"`
@@ -199,6 +198,10 @@ func parsePrecio(valor string) float64 {
 // ------------------ Endpoints ------------------
 
 func getAllProductos(w http.ResponseWriter, r *http.Request) {
+	query := strings.ToLower(r.URL.Query().Get("q"))
+	categoria := strings.ToLower(r.URL.Query().Get("categoria"))
+	ubicacion := strings.ToLower(r.URL.Query().Get("ubicacion"))
+
 	pageStr := r.URL.Query().Get("page")
 	limitStr := r.URL.Query().Get("limit")
 
@@ -211,20 +214,33 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
+	// 🔍 Filtro
+	var filtrados []Producto
+	for _, p := range productos {
+		tituloMatch := query == "" || strings.Contains(strings.ToLower(p.Titulo), query)
+		categoriaMatch := categoria == "" || strings.Contains(strings.ToLower(p.Categoria), categoria)
+		ubicacionMatch := ubicacion == "" || strings.Contains(strings.ToLower(p.Ubicacion), ubicacion)
+
+		if tituloMatch && categoriaMatch && ubicacionMatch {
+			filtrados = append(filtrados, p)
+		}
+	}
+
+	// 🔹 Paginación
 	start := (page - 1) * limit
 	end := start + limit
-	if start >= len(productos) {
-		start = len(productos)
+	if start >= len(filtrados) {
+		start = len(filtrados)
 	}
-	if end > len(productos) {
-		end = len(productos)
+	if end > len(filtrados) {
+		end = len(filtrados)
 	}
 
 	response := map[string]interface{}{
 		"page":      page,
 		"limit":     limit,
-		"total":     len(productos),
-		"productos": productos[start:end],
+		"total":     len(filtrados),
+		"productos": filtrados[start:end],
 	}
 
 	w.Header().Set("Content-Type", "application/json")
