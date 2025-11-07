@@ -57,13 +57,18 @@ type Producto struct {
 var productos []Producto
 var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-// ------------------ Función para randomizar valores ------------------
+// ------------------ Funciones auxiliares ------------------
 
 func randomEntre(min, max float64) float64 {
 	return min + rng.Float64()*(max-min)
 }
 
-// ------------------ Procesar Bloque Logístico ------------------
+func parsePrecio(valor string) float64 {
+	valor = strings.ReplaceAll(valor, "$", "")
+	valor = strings.ReplaceAll(valor, ",", "")
+	p, _ := strconv.ParseFloat(valor, 64)
+	return p
+}
 
 func parseBloqueLogistico(bl string) *BloqueLogistico {
 	if bl == "" {
@@ -155,15 +160,12 @@ func loadJSON() {
 		data, _ := json.Marshal(item)
 		json.Unmarshal(data, &p)
 
-		// 🔹 Procesar bloque logístico con random
 		if val, ok := item["bloque_logistico"].(string); ok {
 			p.BloqueLogistico = parseBloqueLogistico(val)
 		}
 
-		// 🔹 Calcular precio ajustado (cantidad * valor + 1.80)
 		if len(p.Precios) > 0 {
 			pr := &p.Precios[0]
-
 			var cantidad float64
 			for _, word := range strings.Fields(pr.Cantidad) {
 				clean := strings.Trim(word, " -pieces")
@@ -172,7 +174,6 @@ func loadJSON() {
 					break
 				}
 			}
-
 			valor := parsePrecio(pr.Valor)
 			if cantidad > 0 && valor > 0 {
 				total := (cantidad * valor) + 1.80
@@ -186,17 +187,9 @@ func loadJSON() {
 	fmt.Printf("✅ %d productos cargados correctamente desde %s\n", len(productos), path)
 }
 
-// ------------------ Utilidades ------------------
-
-func parsePrecio(valor string) float64 {
-	valor = strings.ReplaceAll(valor, "$", "")
-	valor = strings.ReplaceAll(valor, ",", "")
-	p, _ := strconv.ParseFloat(valor, 64)
-	return p
-}
-
 // ------------------ Endpoints ------------------
 
+// /productos — lista general con filtros y paginación
 func getAllProductos(w http.ResponseWriter, r *http.Request) {
 	query := strings.ToLower(r.URL.Query().Get("q"))
 	categoria := strings.ToLower(r.URL.Query().Get("categoria"))
@@ -216,7 +209,6 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 
 	var filtrados []Producto
 
-	// 🌀 Si la categoría es "all", devolver todos en orden aleatorio
 	if categoria == "all" {
 		filtrados = make([]Producto, len(productos))
 		copy(filtrados, productos)
@@ -224,19 +216,16 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 			filtrados[i], filtrados[j] = filtrados[j], filtrados[i]
 		})
 	} else {
-		// 🔍 Filtrar por búsqueda, categoría y ubicación
 		for _, p := range productos {
 			tituloMatch := query == "" || strings.Contains(strings.ToLower(p.Titulo), query)
 			categoriaMatch := categoria == "" || strings.Contains(strings.ToLower(p.Categoria), categoria)
 			ubicacionMatch := ubicacion == "" || strings.Contains(strings.ToLower(p.Ubicacion), ubicacion)
-
 			if tituloMatch && categoriaMatch && ubicacionMatch {
 				filtrados = append(filtrados, p)
 			}
 		}
 	}
 
-	// 🔹 Paginación
 	start := (page - 1) * limit
 	end := start + limit
 	if start >= len(filtrados) {
@@ -257,6 +246,35 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// /productos/recomendados — devuelve 10 productos aleatorios
+func getProductosRecomendados(w http.ResponseWriter, r *http.Request) {
+	const cantidad = 10
+	if len(productos) == 0 {
+		http.Error(w, "No hay productos cargados", http.StatusInternalServerError)
+		return
+	}
+
+	// Copiar y mezclar aleatoriamente
+	copia := make([]Producto, len(productos))
+	copy(copia, productos)
+	rng.Shuffle(len(copia), func(i, j int) {
+		copia[i], copia[j] = copia[j], copia[i]
+	})
+
+	// Tomar los primeros 10
+	limite := cantidad
+	if len(copia) < cantidad {
+		limite = len(copia)
+	}
+	recomendados := copia[:limite]
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total":     limite,
+		"productos": recomendados,
+	})
+}
+
 // ------------------ MAIN ------------------
 
 func main() {
@@ -264,6 +282,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/productos", getAllProductos)
+	mux.HandleFunc("/productos/recomendados", getProductosRecomendados) // ✅ nuevo endpoint
 
 	port := os.Getenv("PORT")
 	if port == "" {
