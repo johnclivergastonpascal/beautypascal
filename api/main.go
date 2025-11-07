@@ -214,7 +214,7 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	// 🔍 Filtro
+	// 🔍 Filtrar productos según búsqueda, categoría y ubicación
 	var filtrados []Producto
 	for _, p := range productos {
 		tituloMatch := query == "" || strings.Contains(strings.ToLower(p.Titulo), query)
@@ -224,6 +224,19 @@ func getAllProductos(w http.ResponseWriter, r *http.Request) {
 		if tituloMatch && categoriaMatch && ubicacionMatch {
 			filtrados = append(filtrados, p)
 		}
+	}
+
+	// 🌀 Solo aplicar random si la categoría es "all"
+	if categoria == "all" {
+		randomCount := int(float64(len(filtrados)) * 0.4) // 40% de los productos
+		if randomCount < 1 {
+			randomCount = len(filtrados)
+		}
+
+		rng.Shuffle(len(filtrados), func(i, j int) {
+			filtrados[i], filtrados[j] = filtrados[j], filtrados[i]
+		})
+		filtrados = filtrados[:randomCount]
 	}
 
 	// 🔹 Paginación
