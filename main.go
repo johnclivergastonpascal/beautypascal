@@ -24,17 +24,16 @@ type Color struct {
 }
 
 type Producto struct {
-	URL             string   `json:"url"`
-	Categoria       string   `json:"categoria"`
-	Subcategoria    string   `json:"subcategoria"`
-	Ubicacion       string   `json:"ubicacion"`
-	Titulo          string   `json:"titulo"`
-	ImagenesGrandes []string `json:"imagenes"`
-	Colores         []Color  `json:"colores"`
-	Tamaños         []string `json:"tamaños"`
-	DescripcionURL  string   `json:"descripcion_url"`
-	Precios         []Precio `json:"precios"`
-	BloqueLogistico string   `json:"bloque_logistico"`
+	URL             string            `json:"url"`
+	Categoria       string            `json:"categoria"`
+	Ubicacion       string            `json:"ubicacion"`
+	Titulo          string            `json:"titulo"`
+	ImagenesGrandes []string          `json:"imagenes"`
+	Colores         []Color           `json:"colores"`
+	Tamaños         []string          `json:"tamaños"`
+	Precios         []Precio          `json:"precios"`
+	BloqueLogistico string            `json:"bloque_logistico"`
+	Detalles        map[string]string `json:"detalles,omitempty"`
 }
 
 func main() {
@@ -44,10 +43,6 @@ func main() {
 	fmt.Print("Ingrese la categoría: ")
 	categoria, _ := reader.ReadString('\n')
 	categoria = strings.TrimSpace(categoria)
-
-	fmt.Print("Ingrese la subcategoría: ")
-	subcategoria, _ := reader.ReadString('\n')
-	subcategoria = strings.TrimSpace(subcategoria)
 
 	fmt.Print("Ubicación: ")
 	ubicacion, _ := reader.ReadString('\n')
@@ -80,21 +75,17 @@ func main() {
 		time.Sleep(5 * time.Second)
 
 		prod := Producto{
-			URL:          url,
-			Categoria:    categoria,
-			Subcategoria: subcategoria,
-			Ubicacion:    ubicacion,
+			URL:       url,
+			Categoria: categoria,
+			Ubicacion: ubicacion,
 		}
 
 		// ====== Título ======
-		fmt.Println("📘 Obteniendo título...")
-		if h1, err := page.Element("div.product-title-container h1"); err == nil && h1 != nil {
+		if h1, _ := page.Element("div.product-title-container h1"); h1 != nil {
 			prod.Titulo = strings.TrimSpace(h1.MustText())
-			fmt.Printf("✅ Título: %s\n", prod.Titulo)
 		}
 
 		// ====== Imágenes grandes ======
-		fmt.Println("🖼️ Obteniendo imágenes grandes...")
 		mainImgs, _ := page.Elements(`#ProductImageMain img`)
 		for _, img := range mainImgs {
 			if src, _ := img.Attribute("src"); src != nil {
@@ -102,14 +93,11 @@ func main() {
 				if strings.HasPrefix(imgURL, "//") {
 					imgURL = "https:" + imgURL
 				}
-				if strings.Contains(imgURL, "960x960") || strings.Contains(imgURL, "kf/") {
-					prod.ImagenesGrandes = append(prod.ImagenesGrandes, imgURL)
-				}
+				prod.ImagenesGrandes = append(prod.ImagenesGrandes, imgURL)
 			}
 		}
 
 		// ====== Colores ======
-		fmt.Println("🎨 Obteniendo colores...")
 		colorImgs, _ := page.Elements("div.double-bordered-box img")
 		for _, c := range colorImgs {
 			color := Color{}
@@ -126,7 +114,6 @@ func main() {
 		}
 
 		// ====== Tamaños ======
-		fmt.Println("📏 Obteniendo tamaños...")
 		sizeSpans, _ := page.Elements("div[data-testid='non-last-sku-item'] span")
 		for _, s := range sizeSpans {
 			text := strings.TrimSpace(s.MustText())
@@ -135,90 +122,45 @@ func main() {
 			}
 		}
 
-		// ====== Descripción ======
-		fmt.Println("🧾 Obteniendo URL de descripción...")
-		if iframe, err := page.Element("iframe"); err == nil && iframe != nil {
-			if src, _ := iframe.Attribute("src"); src != nil {
-				if strings.HasPrefix(*src, "//") {
-					prod.DescripcionURL = "https:" + *src
-				} else {
-					prod.DescripcionURL = *src
-				}
+		// ====== NUEVO: Detalles robustos ======
+		prod.Detalles = make(map[string]string)
+
+		// Buscamos todos los divs que tengan id-line-clamp-2
+		detailDivs, _ := page.Elements("div.id-line-clamp-2")
+		for i := 0; i < len(detailDivs)-1; i++ {
+			keyDiv := detailDivs[i]
+			valDiv := detailDivs[i+1]
+
+			key := strings.TrimSpace(keyDiv.MustText())
+			val := strings.TrimSpace(valDiv.MustText())
+
+			if key != "" && val != "" {
+				prod.Detalles[key] = val
+				i++ // saltamos el valor ya usado
 			}
 		}
 
 		// ====== Precios ======
-		fmt.Println("💰 Obteniendo precios...")
 		var precios []Precio
-
-		// Primero intenta con la nueva estructura (.price-item)
 		priceItems, _ := page.Elements("div.price-item")
-		if len(priceItems) > 0 {
-			for _, item := range priceItems {
-				precio := Precio{}
-
-				// Cantidad (ej: "2 - 49 unidades")
-				if qtyDiv, _ := item.Element("div.id-mb-2"); qtyDiv != nil {
-					precio.Cantidad = strings.TrimSpace(qtyDiv.MustText())
-				}
-
-				// Valor (ej: "USD 0.41")
-				if valSpan, _ := item.Element("div.id-flex-col span"); valSpan != nil {
-					val := strings.TrimSpace(valSpan.MustText())
-					val = strings.ReplaceAll(val, "USD", "")
-					val = strings.ReplaceAll(val, "US", "")
-					precio.Valor = strings.TrimSpace(val)
-				}
-
-				if precio.Valor != "" {
-					precios = append(precios, precio)
-				}
+		for _, item := range priceItems {
+			precio := Precio{}
+			if qtyDiv, _ := item.Element("div.id-mb-2"); qtyDiv != nil {
+				precio.Cantidad = strings.TrimSpace(qtyDiv.MustText())
+			}
+			if valSpan, _ := item.Element("div.id-flex-col span"); valSpan != nil {
+				val := strings.TrimSpace(valSpan.MustText())
+				val = strings.ReplaceAll(val, "USD", "")
+				val = strings.ReplaceAll(val, "US", "")
+				precio.Valor = strings.TrimSpace(val)
+			}
+			if precio.Valor != "" {
+				precios = append(precios, precio)
 			}
 		}
+		prod.Precios = precios
 
-		// Si no se encontraron precios con la nueva estructura, usar los selectores antiguos
-		if len(precios) == 0 {
-			if priceModule, err := page.Element(`div[data-module-name="module_price"]`); err == nil && priceModule != nil {
-				// Rango de precios
-				if rangePriceDiv, _ := priceModule.Element("div[data-testid='range-price']"); rangePriceDiv != nil {
-					precio := Precio{}
-					if cantEl, _ := rangePriceDiv.Element("div"); cantEl != nil {
-						precio.Cantidad = strings.TrimSpace(cantEl.MustText())
-					}
-					if valEl, _ := rangePriceDiv.Element("span"); valEl != nil {
-						precio.Valor = strings.TrimSpace(valEl.MustText())
-					}
-					if precio.Valor != "" {
-						precios = append(precios, precio)
-					}
-				}
-				// Precio fijo
-				if len(precios) == 0 {
-					if fixedPriceDiv, _ := priceModule.Element("div[data-testid='fixed-price']"); fixedPriceDiv != nil {
-						precio := Precio{}
-						if cantEl, _ := fixedPriceDiv.Element("div"); cantEl != nil {
-							precio.Cantidad = strings.TrimSpace(cantEl.MustText())
-						}
-						if valEl, _ := fixedPriceDiv.Element("strong"); valEl != nil {
-							precio.Valor = strings.TrimSpace(valEl.MustText())
-						}
-						if precio.Valor != "" {
-							precios = append(precios, precio)
-						}
-					}
-				}
-			}
-		}
-
-		if len(precios) > 0 {
-			prod.Precios = precios
-			fmt.Printf("✅ %d precios encontrados\n", len(precios))
-		} else {
-			fmt.Println("⚠️ No se encontraron precios.")
-		}
-
-		// ====== 🚚 Nuevo Bloque Logístico ======
-		fmt.Println("🚚 Obteniendo bloque logístico...")
+		// ====== Bloque Logístico ======
 		logistics, _ := page.Elements(`div.shipping-layout div.shipping-item`)
 		var envioTexto []string
 		for _, l := range logistics {
@@ -241,10 +183,8 @@ func main() {
 		}
 		if len(envioTexto) > 0 {
 			prod.BloqueLogistico = strings.Join(envioTexto, " || ")
-			fmt.Printf("✅ Bloque logístico: %s\n", prod.BloqueLogistico)
 		} else {
 			prod.BloqueLogistico = "No disponible"
-			fmt.Println("⚠️ Bloque logístico no encontrado.")
 		}
 
 		productos = append(productos, prod)
@@ -252,7 +192,6 @@ func main() {
 	}
 
 	// ====== Guardar resultados ======
-	fmt.Println("\n💾 Guardando resultados...")
 	file, err := os.Create("productos_detalle.json")
 	if err != nil {
 		log.Fatal(err)
