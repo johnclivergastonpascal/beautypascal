@@ -40,16 +40,16 @@ type BloqueLogistico struct {
 }
 
 type Producto struct {
-	URL             string           `json:"url"`
-	Categoria       string           `json:"categoria"`
-	Ubicacion       string           `json:"ubicacion"`
-	Titulo          string           `json:"titulo"`
-	ImagenesGrandes []string         `json:"imagenes"`
-	Colores         []Color          `json:"colores"`
-	Tamaños         []string         `json:"tamaños"`
-	DescripcionURL  string           `json:"descripcion_url"`
-	Precios         []Precio         `json:"precios"`
-	BloqueLogistico *BloqueLogistico `json:"bloque_logistico"`
+	URL             string            `json:"url"`
+	Categoria       string            `json:"categoria"`
+	Ubicacion       string            `json:"ubicacion"`
+	Titulo          string            `json:"titulo"`
+	ImagenesGrandes []string          `json:"imagenes"`
+	Colores         []Color           `json:"colores"`
+	Tamaños         []string          `json:"tamaños"`
+	Precios         []Precio          `json:"precios"`
+	BloqueLogistico *BloqueLogistico  `json:"bloque_logistico"`
+	Detalles        map[string]string `json:"detalles"` // 👈 cambio aquí
 }
 
 // ------------------ Variables globales ------------------
