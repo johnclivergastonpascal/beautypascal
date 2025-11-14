@@ -90,10 +90,12 @@ func main() {
 		for _, img := range mainImgs {
 			if src, _ := img.Attribute("src"); src != nil {
 				imgURL := *src
-				if strings.HasPrefix(imgURL, "//") {
-					imgURL = "https:" + imgURL
+				if strings.Contains(imgURL, "_960x960q80") { // 🔹 Solo imágenes grandes
+					if strings.HasPrefix(imgURL, "//") {
+						imgURL = "https:" + imgURL
+					}
+					prod.ImagenesGrandes = append(prod.ImagenesGrandes, imgURL)
 				}
-				prod.ImagenesGrandes = append(prod.ImagenesGrandes, imgURL)
 			}
 		}
 
@@ -142,23 +144,69 @@ func main() {
 
 		// ====== Precios ======
 		var precios []Precio
-		priceItems, _ := page.Elements("div.price-item")
-		for _, item := range priceItems {
-			precio := Precio{}
-			if qtyDiv, _ := item.Element("div.id-mb-2"); qtyDiv != nil {
-				precio.Cantidad = strings.TrimSpace(qtyDiv.MustText())
+
+		// 🔹 Caso 1: Rango de precios normal
+		priceBlocks, _ := page.Elements(`div[data-testid='range-price']`)
+		if len(priceBlocks) > 0 {
+			for _, pb := range priceBlocks {
+				cantidadEl, _ := pb.Element(`div.id-mb-2`)
+				valorActualEl, _ := pb.Element(`span.id-text-2xl`)
+				valorAnteriorEl, _ := pb.Element(`span[class*='line-through']`) // más robusto
+
+				cantidad := ""
+				if cantidadEl != nil {
+					cantidad = strings.TrimSpace(cantidadEl.MustText())
+				}
+
+				valor := ""
+				if valorAnteriorEl != nil {
+					valor = strings.TrimSpace(valorAnteriorEl.MustText()) // 🔹 si hay tachado
+				} else if valorActualEl != nil {
+					valor = strings.TrimSpace(valorActualEl.MustText()) // 🔹 si no hay tachado, usar actual
+				}
+
+				if cantidad != "" || valor != "" {
+					precios = append(precios, Precio{
+						Cantidad: cantidad,
+						Valor:    valor,
+					})
+				}
 			}
-			if valSpan, _ := item.Element("div.id-flex-col span"); valSpan != nil {
-				val := strings.TrimSpace(valSpan.MustText())
-				val = strings.ReplaceAll(val, "USD", "")
-				val = strings.ReplaceAll(val, "US", "")
-				precio.Valor = strings.TrimSpace(val)
-			}
-			if precio.Valor != "" {
-				precios = append(precios, precio)
+		} else {
+			// 🔹 Caso 2: Precios escalonados (ladder-price)
+			ladderBlocks, _ := page.Elements(`div[data-testid='ladder-price'] div.price-item`)
+			for _, lb := range ladderBlocks {
+				cantidadEl, _ := lb.Element(`div.id-mb-2`)
+				valorActualEl, _ := lb.Element(`span.id-text-highlight-dark, span:not(.id-text-highlight-dark):not(.id-line-through)`)
+				valorAnteriorEl, _ := lb.Element(`span[class*='line-through']`)
+
+				cantidad := ""
+				if cantidadEl != nil {
+					cantidad = strings.TrimSpace(cantidadEl.MustText())
+				}
+
+				valor := ""
+				if valorAnteriorEl != nil {
+					valor = strings.TrimSpace(valorAnteriorEl.MustText()) // si hay tachado
+				} else if valorActualEl != nil {
+					valor = strings.TrimSpace(valorActualEl.MustText()) // si no hay tachado, usar actual
+				}
+
+				if cantidad != "" || valor != "" {
+					precios = append(precios, Precio{
+						Cantidad: cantidad,
+						Valor:    valor,
+					})
+				}
 			}
 		}
-		prod.Precios = precios
+
+		// Guardar los precios en el producto
+		if len(precios) > 0 {
+			prod.Precios = precios
+		} else {
+			prod.Precios = []Precio{{Cantidad: "No disponible", Valor: "N/A"}}
+		}
 
 		// ====== Bloque Logístico ======
 		logistics, _ := page.Elements(`div.shipping-layout div.shipping-item`)

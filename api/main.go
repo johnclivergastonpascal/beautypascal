@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -78,20 +79,50 @@ func parseBloqueLogistico(bl string) *BloqueLogistico {
 	result := &BloqueLogistico{}
 	partes := strings.Split(bl, "||")
 
+	rePrice := regexp.MustCompile(`\$\d+(\.\d+)?`) // buscar $xx.xx
+	var premiumFee float64
+
 	for _, parte := range partes {
 		p := strings.TrimSpace(parte)
 		if p == "" {
 			continue
 		}
 
-		var fee string
-		if strings.Contains(p, "Premium") {
-			fee = fmt.Sprintf("$%.2f", randomEntre(34.50, 65.05))
-		} else if strings.Contains(p, "Standard") {
-			fee = fmt.Sprintf("$%.2f", randomEntre(24.90, 54.09))
-		} else if strings.Contains(p, "Economy") {
-			fee = fmt.Sprintf("$%.2f", randomEntre(8.88, 13.99))
+		var fee float64
+
+		switch {
+		case strings.Contains(p, "Premium"):
+			// 🔹 Extraer todos los precios en Premium
+			if matches := rePrice.FindAllString(p, -1); len(matches) >= 2 {
+				// 🔹 Tomar el segundo valor $33.83
+				val := strings.ReplaceAll(matches[1], "$", "")
+				val = strings.ReplaceAll(val, ",", "")
+				if f, err := strconv.ParseFloat(val, 64); err == nil {
+					fee = f
+				}
+			}
+			// 🔹 Sumar 1.20
+			fee += 1.20
+			premiumFee = fee // 🔹 Guardamos para usarlo en Standard/Economy
+
+		case strings.Contains(p, "Standard"):
+			// 🔹 Aleatorio menor que Premium
+			max := premiumFee - 0.01
+			if max < 0.5 {
+				max = 0.5
+			}
+			fee = randomEntre(0.90, max)
+
+		case strings.Contains(p, "Economy"):
+			// 🔹 Aleatorio menor que Premium
+			max := premiumFee - 0.01
+			if max < 0.5 {
+				max = 0.5
+			}
+			fee = randomEntre(0.50, max)
 		}
+
+		feeStr := fmt.Sprintf("$%.2f", fee)
 
 		entrega := ""
 		if idx := strings.Index(p, "Guaranteed delivery:"); idx != -1 {
@@ -100,21 +131,9 @@ func parseBloqueLogistico(bl string) *BloqueLogistico {
 			entrega = tmp
 		}
 
-		porcentaje := ""
-		if strings.Contains(p, "% delivered") {
-			partes := strings.Split(p, ",")
-			for _, s := range partes {
-				if strings.Contains(s, "% delivered") {
-					porcentaje = strings.TrimSpace(strings.Split(s, "%")[0]) + "%"
-					break
-				}
-			}
-		}
-
 		bloque := &Bloque{
-			ShippingFee:        fee,
+			ShippingFee:        feeStr,
 			GuaranteedDelivery: entrega,
-			Entregas15Dias:     porcentaje,
 		}
 
 		switch {
