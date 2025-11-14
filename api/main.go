@@ -65,8 +65,21 @@ func randomEntre(min, max float64) float64 {
 }
 
 func parsePrecio(valor string) float64 {
+	// Limpieza
 	valor = strings.ReplaceAll(valor, "$", "")
 	valor = strings.ReplaceAll(valor, ",", "")
+	valor = strings.TrimSpace(valor)
+
+	// Detectar si es un rango "3.99-4.72"
+	if strings.Contains(valor, "-") {
+		partes := strings.Split(valor, "-")
+		if len(partes) == 2 {
+			// Tomar el último valor del rango (el mayor)
+			valor = strings.TrimSpace(partes[1])
+		}
+	}
+
+	// Convertir a float64
 	p, _ := strconv.ParseFloat(valor, 64)
 	return p
 }
@@ -193,6 +206,7 @@ func loadJSON() {
 					break
 				}
 			}
+
 			valor := parsePrecio(pr.Valor)
 			if cantidad > 0 && valor > 0 {
 				total := (cantidad * valor) + 1.80
